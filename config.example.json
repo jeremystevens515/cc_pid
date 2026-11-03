@@ -1,0 +1,24 @@
+{
+  "supervisory_controllers": [
+    {
+      "uid": "generated-by-the-ui",
+      "name": "cpu",
+      "temp_source": {
+        "device_uid": "<device uid from CoolerControl>",
+        "temp_name": "sensor1"
+      },
+      "pid_config": {
+        "target_temp": 70,
+        "deadband": 0,
+        "deadband_offset": 0,
+        "min_duty": 30,
+        "target_duty": 50,
+        "max_duty": 100,
+        "kp": 2,
+        "ki": 0.05,
+        "kd": 3
+      },
+      "profile_uid": "<Fixed profile uid>"
+    }
+  ]
+}

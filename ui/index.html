@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <title>cc_pid_ui</title>
+  <script type="text/javascript" src="/plugins/lib/cc-plugin-lib.js"></script>
+  <!-- The library is served by the CoolerControl daemon at /plugins/lib/cc-plugin-lib.js.
+       For local development without a running daemon, copy cc-plugin-lib.js next to this
+       file and change the src to "./cc-plugin-lib.js". -->
+</head>
+<style>
+    /* Hide spinners for Chrome, Safari, Edge, and Opera */
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    /* Hide spinners for Firefox */
+    input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+    }
+
+    #saveBtn {
+        width: 6rem;
+        height: 2rem;
+    }
+
+    #addCtrlBtn {
+        width: 3rem;
+        height: 3rem;
+    }
+</style>
+<body>
+    <main class="flex flex-col gap-4 text-text-color bg-bg-one" style="margin: 1rem;">
+        <nav class="flex flex-row justify-between items-center border-b border-border-one">
+            <h1 class="text-lg">Controls</h1>
+            <button id="saveBtn" type="button" value="save" class="bg-accent/80 hover:!bg-accent border-border-one rounded-lg text-center p-2 mb-2" style="line-height: 1.3rem;">save</button>
+        </nav>
+        <section id="controlsView" class="flex gap-4" style="height: 100dvh">
+            <div id="configFormCards" class="flex flex-row gap-4">
+                <!-- Form cards will be dynamically generated here -->
+            </div>
+            <div id="addControlView" class="flex flex-col justify-center">
+                <button id="addCtrlBtn" type="button" class="flex items-center justify-center bg-accent/80 hover:!bg-accent p-0 border-border-one rounded-full">
+                    <svg xmlns="http://w3.org" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" class="block">
+                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                    </svg>
+                </button>
+            </div>
+        </section>
+        <dialog id="dialogModal" class="text-text-color bg-bg-two border border-border-one rounded-lg p-2">
+            <div id="dialogMessage">message</div>
+            <div class="flex flex-row justify-between gap-4">
+                <button id="confirmBtn" type="button" value="confirm" class="bg-accent/80 hover:!bg-accent p-0 border-border-one rounded-lg w-16 p-2">OK</button>
+                <button id="cancelBtn" type="button" value="cancel" class="bg-accent/80 hover:!bg-accent p-0 border-border-one rounded-lg w-16 p-2">Cancel</button>
+            </div>
+        </dialog>
+    </main>
+
+<script type="text/javascript">
+runPluginScript(async () => {
+    // global variables
+    const Config = await getPluginConfig();
+    console.log(Config);
+    const GlobalDevices = await getDevices();
+    const GlobalProfiles = await getProfiles();
+    
+    // helper functions
+    function normalizeNumeric(value) {
+        if (typeof value === 'number') {
+            return value;
+        }
+        if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
+            return Number(value);
+        }
+        return value;
+    };
+
+    function filterProfiles(Profiles, type) {
+        const filteredProfiles = [];
+
+        for (const profile of Profiles) {
+            if (profile.p_type === type) {
+                filteredProfiles.push(profile);
+            }
+        }
+
+        return filteredProfiles; //array of objects
+    };
+
+    function filterDevices(Devices, type) {
+        const CHANNEL_TYPE_TESTS = {
+            fan: (ch) => ch.speed_options != null,
+            lighting: (ch) => (ch.lighting_modes?.length ?? 0) > 0,
+            lcd: (ch) => (ch.lcd_modes?.length ?? 0) > 0 || ch.lcd_info != null,
+        };
+
+        const test = CHANNEL_TYPE_TESTS[type];
+        if (!test) throw new Error(`Unknown channel type: ${type}`);
+
+        const filteredDevices = [];
+
+        for (const device of Devices) {
+            device.info.channels.filter(test).forEach((ch) => {filteredDevices.push(ch)});
+        }
+        return filteredDevices;
+    };
+
+    function getTempSources(Devices) {
+        const tempSources = new Set();
+        for (const device of Devices) {
+            device.info.temps.forEach((temp) => {
+                temp.device_uid = device.uid;
+                tempSources.add(temp);
+            });
+        };
+        //console.log("Temp Sources: ", Array.from(tempSources));
+        return Array.from(tempSources);
+    }   
+
+    // functions
+    function getResponse(message) {
+        return new Promise((resolve) => {
+            const dialogModal = document.getElementById('dialogModal');
+            const dialogMessage = document.getElementById('dialogMessage');
+            const confirmBtn = document.getElementById('confirmBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
+
+            dialogMessage.textContent = message;
+
+            const closeDialog = (confirmed) => {
+                dialogModal.close();
+                resolve(confirmed);
+            };
+
+            confirmBtn.onclick = () => closeDialog(true);
+            cancelBtn.onclick = () => closeDialog(false);
+
+            dialogModal.showModal();
+        });
+    };
+
+    function addControl(config) {
+        const fixedProfiles = filterProfiles(GlobalProfiles, 'Fixed');
+        const uid = config?.uid ?? crypto.randomUUID();
+        const pidConfig = config?.pid_config ?? {
+            target_temp: 70.0,
+            deadband: 0.0,
+            deadband_offset: 0.0,
+            min_duty: 30.0,
+            target_duty: 50.0,
+            max_duty: 100.0,
+            kp: 2.0,
+            ki: 0.05,
+            kd: 3.0
+        };
+
+        const cards = document.getElementById('configFormCards')
+
+        const formCard = document.createElement('form');
+        formCard.id = uid;
+        formCard.className = 'flex flex-col border border-border-one rounded-lg';
+
+        //name block
+        const nameContainer = document.createElement('fieldset');
+        const nameLabel = document.createElement('label');
+        const nameInput = document.createElement('input');
+
+        nameContainer.className = 'flex flex-col bg-bg-two border border-border-one rounded-lg p-2 m-2 mb-1';
+
+        nameLabel.htmlFor = "name";
+        nameLabel.textContent = "Control Name: ";
+        nameLabel.className = 'border-b border-border-one mb-1';
+
+        nameInput.type = "text";
+        nameInput.name = "name";
+        nameInput.required = true;
+        nameInput.value = config?.name ?? "<new control>";
+        nameInput.className = 'bg-bg-one border-border-one rounded-lg mt-1 p-1';
+
+        nameContainer.appendChild(nameLabel);
+        nameContainer.appendChild(nameInput);
+
+        //temp source block
+        const tempSourceContainer = document.createElement('fieldset');
+        const tempSourceLabel = document.createElement('label');
+        const tempSourceSelect = document.createElement('select');
+
+        tempSourceContainer.className = 'flex flex-col bg-bg-two border border-border-one rounded-lg p-2 m-2 mb-1';
+
+        tempSourceLabel.htmlFor = "temp_source";
+        tempSourceLabel.textContent = "Temperature Source: ";
+        tempSourceLabel.className = 'border-b border-border-one mb-1';
+        
+        tempSourceSelect.id = "temp_source";
+        tempSourceSelect.name = "temp_source";
+        tempSourceSelect.required = true;
+        tempSourceSelect.className = 'bg-bg-one border-border-one rounded-lg mt-1 p-1';
+        for (const device of GlobalDevices) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = `-- ${device.name} --`;
+
+            for (const temp of device.info.temps) {
+                const option = document.createElement('option');
+                option.value = `{"device_uid":"${device.uid}","temp_name":"${temp[0]}"}`;
+                option.textContent = temp[1].label;
+                if (config?.temp_source?.temp_name === temp[0] && config?.temp_source?.device_uid === device.uid) {
+                    option.selected = true;
+                }
+                optgroup.appendChild(option);
+            }
+            tempSourceSelect.appendChild(optgroup);
+        };
+        tempSourceContainer.appendChild(tempSourceLabel);
+        tempSourceContainer.appendChild(tempSourceSelect);
+
+        //Config block
+        const configContainer = document.createElement('fieldset');
+
+        const configLabel = document.createElement('label');
+        const configTable = document.createElement('table');
+
+        const configTableHeader = document.createElement('thead');
+        const configHeaderRow = document.createElement('tr');
+        const configHeaderLabel = document.createElement('th');
+        const configHeaderValue = document.createElement('th');
+
+        const configTableBody = document.createElement('tbody');
+
+        configContainer.className = "flex flex-col bg-bg-two border border-border-one rounded-lg p-2 m-2 mb-0";
+
+        configLabel.textContent = "PID Configuration:";
+        configLabel.className = "border-b border-border-one mb-1";
+
+        configTable.className = "table-fixed w-full";
+
+        configHeaderRow.className = "flex";
+
+        configHeaderLabel.textContent = "Setting";
+        configHeaderLabel.className = "text-left";
+        configHeaderLabel.style.width = "50%";
+
+        configHeaderValue.textContent = "Value";
+        configHeaderValue.style.width = "50%";
+
+        configHeaderRow.appendChild(configHeaderLabel);
+        configHeaderRow.appendChild(configHeaderValue);
+        configTable.appendChild(configHeaderRow);
+        configTable.appendChild(configTableBody);
+
+        for (const [key, value] of Object.entries(pidConfig)) {
+            const configTableInputRow = document.createElement('tr');
+            const configInputLabel = document.createElement('label');
+            const configInputContainer = document.createElement('td');
+            const configInput = document.createElement('input');
+            const decrementBtn = document.createElement('button');
+            const incrementBtn = document.createElement('button');
+
+            configTableInputRow.className = "flex flex-row justify-between";
+            configInputLabel.htmlFor = key;
+            configInputLabel.textContent = key;
+            configInputLabel.className = "min-w-0";
+            
+            configInput.id = key;
+            configInput.type = "number";
+            configInput.name = key;
+            configInput.required = true;
+            configInput.value = value;
+            configInput.step = 0.01;
+            configInput.className = "bg-bg-one border-border-one rounded-lg p-2 w-16 text-center";
+
+            configInput.addEventListener('input', () => {
+                if (!configInput.checkValidity()) {
+                    configInput.reportValidity();
+                }
+            });
+
+            decrementBtn.type = "button";
+            decrementBtn.textContent = "-";
+            decrementBtn.className = "p-2";
+            decrementBtn.addEventListener('click', () => {
+                configInput.stepDown();
+            });
+
+            incrementBtn.type = "button";
+            incrementBtn.textContent = "+";
+            incrementBtn.className = "p-2";
+            incrementBtn.addEventListener('click', () => {
+                configInput.stepUp();
+            });
+
+            configInputContainer.appendChild(decrementBtn);
+            configInputContainer.appendChild(configInput);
+            configInputContainer.appendChild(incrementBtn);
+            configTableInputRow.appendChild(configInputLabel);
+            configTableInputRow.appendChild(configInputContainer);
+            configTableBody.appendChild(configTableInputRow);
+        };
+
+        configContainer.appendChild(configLabel);
+        configContainer.appendChild(configTable);
+
+        //profile selection block
+        const profileContainer = document.createElement('fieldset');
+        const profileSelectLabel = document.createElement('label');
+        const profileSelect = document.createElement('select');
+
+        profileContainer.className = "flex flex-col bg-bg-two border border-border-one rounded-lg p-2 m-2";
+        profileContainer.id = `profileContainer-${uid}`;
+
+        profileSelectLabel.htmlFor = "profile_uid";
+        profileSelectLabel.textContent = "Select Profile: ";
+        profileSelectLabel.className = "border-b border-border-one mb-1";
+        
+        profileSelect.name = "profile_uid";
+        profileSelect.required = true;
+        profileSelect.className = "bg-bg-one border-border-one rounded-lg mt-1 p-1";
+        for (const profile of fixedProfiles) {
+            const option = document.createElement('option');
+            option.textContent = profile.name;
+            option.selected = profile.uid === config?.profile_uid;
+            option.value = profile.uid;
+            profileSelect.appendChild(option); 
+        };
+
+        profileContainer.appendChild(profileSelectLabel);
+        profileContainer.appendChild(profileSelect);
+
+        //remove button
+        const removeBtnContainer = document.createElement('div');
+        const removeBtn = document.createElement('button');
+
+        removeBtn.type = "button";
+        removeBtn.id = "removeBtn";
+        removeBtn.value ="remove";
+        removeBtn.textContent = "remove";
+        removeBtn.className = 'bg-bg-two border border-border-one rounded-lg p-2 m-2 mt-0';
+
+        removeBtn.addEventListener('click', async () => {
+            const confirmed = await getResponse("Remove control?");
+            if (confirmed) {
+                removeControl(uid);
+            }
+        });
+
+        removeBtnContainer.appendChild(removeBtn);
+
+        //build card
+        formCard.appendChild(nameContainer);
+        formCard.appendChild(tempSourceContainer);
+        formCard.appendChild(configContainer);
+        formCard.appendChild(profileContainer);
+        formCard.appendChild(removeBtnContainer);
+        
+        //add card to collection
+        cards.appendChild(formCard);
+
+    };
+
+    function removeControl(controlId) {
+        try {
+            document.getElementById(controlId).remove();
+        } catch (error) {
+            console.log(error);
+        }
+    };
+
+    async function saveConfig() {
+        let controlsData = [];
+        const forms = document.getElementsByTagName('form');
+
+        for (const form of forms) {
+            const formDataObject = convertFormToObject(new FormData(form))
+            formDataObject.temp_source = JSON.parse(form.elements.namedItem('temp_source').value);
+
+            formattedData =
+                    {
+                        uid: form.id || crypto.randomUUID(),
+                        name: formDataObject.name,
+                        temp_source: formDataObject.temp_source,
+                        pid_config: {
+                            target_temp: Number(formDataObject.target_temp),
+                            deadband: Number(formDataObject.deadband),
+                            deadband_offset: Number(formDataObject.deadband_offset),
+                            min_duty: Number(formDataObject.min_duty),
+                            target_duty: Number(formDataObject.target_duty),
+                            max_duty: Number(formDataObject.max_duty),
+                            kp: Number(formDataObject.kp),
+                            ki: Number(formDataObject.ki),
+                            kd: Number(formDataObject.kd)
+                        },
+                        profile_uid: formDataObject.profile_uid
+                    }
+
+            controlsData.push(formattedData);
+        }
+        
+        await savePluginConfig({supervisory_controllers: controlsData});
+        restartPlugin();
+    };
+
+    async function renderControls(Config, Devices, Profiles) {
+        const controllers = Config?.supervisory_controllers;
+        if (Array.isArray(controllers) && controllers.length > 0) {
+            for (const control of controllers) {
+                addControl(control);
+            }
+        }
+    };
+
+    await renderControls(Config, GlobalDevices, GlobalProfiles);
+    document.getElementById('addCtrlBtn').addEventListener('click', () => addControl());
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+        const confirmed = await getResponse("Save changes?");
+        if (confirmed) {
+            await saveConfig();
+        }
+    });
+});
+
+</script>
+</body>
+</html>

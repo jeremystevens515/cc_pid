@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+# machine-specific: contains your device/profile UIDs
+config.json
+token

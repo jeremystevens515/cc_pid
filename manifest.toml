@@ -1,0 +1,10 @@
+# CoolerControl Service Plugin Manifest
+id = "cc_pid"
+type = "integration"
+version = "0.2.0"
+description = "PID controller for setting fan duty based on a temperature target"
+executable = "cc_pid.py"
+privileged = false
+# No secrets here: this file is world-readable. The API token is read from the
+# 'token' file next to cc_pid.py. To use a non-default daemon address, add:
+# envs = "COOLERCONTROL_URL=http://localhost:11987"
