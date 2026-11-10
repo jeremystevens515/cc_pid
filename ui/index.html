@@ -32,17 +32,17 @@
     }
 </style>
 <body>
-    <main class="flex flex-col gap-4 text-text-color bg-bg-one" style="margin: 1rem;">
-        <nav class="flex flex-row justify-between items-center border-b border-border-one">
+    <main class="flex flex-col gap-4 text-text-color bg-bg-one" style="height: 100dvh; margin: 1rem;">
+        <nav class="flex flex-row justify-between items-center">
             <h1 class="text-lg">Controls</h1>
             <button id="saveBtn" type="button" value="save" class="bg-accent/80 hover:!bg-accent border-border-one rounded-lg text-center p-2 mb-2" style="line-height: 1.3rem;">save</button>
         </nav>
-        <section id="controlsView" class="flex gap-4" style="height: 100dvh">
+        <section id="controlsView" class="flex gap-4">
             <div id="configFormCards" class="flex flex-row gap-4">
                 <!-- Form cards will be dynamically generated here -->
             </div>
             <div id="addControlView" class="flex flex-col justify-center">
-                <button id="addCtrlBtn" type="button" class="flex items-center justify-center bg-accent/80 hover:!bg-accent p-0 border-border-one rounded-full">
+                <button id="addCtrlBtn" type="button" class="flex items-center justify-center bg-accent/80 hover:!bg-accent p-0 rounded-full">
                     <svg xmlns="http://w3.org" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" class="block">
                         <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
                     </svg>
@@ -160,14 +160,14 @@ runPluginScript(async () => {
 
         const formCard = document.createElement('form');
         formCard.id = uid;
-        formCard.className = 'flex flex-col border border-border-one rounded-lg';
+        formCard.className = 'flex flex-col rounded-lg';
 
-        //name block
+        // name block
         const nameContainer = document.createElement('fieldset');
         const nameLabel = document.createElement('label');
         const nameInput = document.createElement('input');
 
-        nameContainer.className = 'flex flex-col bg-bg-two border border-border-one rounded-lg p-2 m-2 mb-1';
+        nameContainer.className = 'flex flex-col bg-bg-two rounded-lg p-2 mb-1';
 
         nameLabel.htmlFor = "name";
         nameLabel.textContent = "Control Name: ";
@@ -177,17 +177,17 @@ runPluginScript(async () => {
         nameInput.name = "name";
         nameInput.required = true;
         nameInput.value = config?.name ?? "<new control>";
-        nameInput.className = 'bg-bg-one border-border-one rounded-lg mt-1 p-1';
+        nameInput.className = 'bg-bg-one rounded-lg p-1 mt-1';
 
         nameContainer.appendChild(nameLabel);
         nameContainer.appendChild(nameInput);
 
-        //temp source block
+        // temp source block
         const tempSourceContainer = document.createElement('fieldset');
         const tempSourceLabel = document.createElement('label');
         const tempSourceSelect = document.createElement('select');
 
-        tempSourceContainer.className = 'flex flex-col bg-bg-two border border-border-one rounded-lg p-2 m-2 mb-1';
+        tempSourceContainer.className = 'flex flex-col bg-bg-two rounded-lg p-2 mb-1';
 
         tempSourceLabel.htmlFor = "temp_source";
         tempSourceLabel.textContent = "Temperature Source: ";
@@ -196,7 +196,7 @@ runPluginScript(async () => {
         tempSourceSelect.id = "temp_source";
         tempSourceSelect.name = "temp_source";
         tempSourceSelect.required = true;
-        tempSourceSelect.className = 'bg-bg-one border-border-one rounded-lg mt-1 p-1';
+        tempSourceSelect.className = 'bg-bg-one rounded-lg p-1 mt-1';
         for (const device of GlobalDevices) {
             const optgroup = document.createElement('optgroup');
             optgroup.label = `-- ${device.name} --`;
@@ -215,7 +215,7 @@ runPluginScript(async () => {
         tempSourceContainer.appendChild(tempSourceLabel);
         tempSourceContainer.appendChild(tempSourceSelect);
 
-        //Config block
+        // config block
         const configContainer = document.createElement('fieldset');
 
         const configLabel = document.createElement('label');
@@ -228,14 +228,14 @@ runPluginScript(async () => {
 
         const configTableBody = document.createElement('tbody');
 
-        configContainer.className = "flex flex-col bg-bg-two border border-border-one rounded-lg p-2 m-2 mb-0";
+        configContainer.className = "flex flex-col bg-bg-two rounded-lg p-2 mb-1";
 
         configLabel.textContent = "PID Configuration:";
         configLabel.className = "border-b border-border-one mb-1";
 
-        configTable.className = "table-fixed w-full";
+        configTable.className = "flex flex-col";
 
-        configHeaderRow.className = "flex";
+        configHeaderRow.className = "flex flex-row";
 
         configHeaderLabel.textContent = "Setting";
         configHeaderLabel.className = "text-left";
@@ -268,7 +268,7 @@ runPluginScript(async () => {
             configInput.required = true;
             configInput.value = value;
             configInput.step = 0.01;
-            configInput.className = "bg-bg-one border-border-one rounded-lg p-2 w-16 text-center";
+            configInput.className = "bg-bg-one rounded-lg p-2 w-16 text-center";
 
             configInput.addEventListener('input', () => {
                 if (!configInput.checkValidity()) {
@@ -301,12 +301,12 @@ runPluginScript(async () => {
         configContainer.appendChild(configLabel);
         configContainer.appendChild(configTable);
 
-        //profile selection block
+        // profile selection block
         const profileContainer = document.createElement('fieldset');
         const profileSelectLabel = document.createElement('label');
         const profileSelect = document.createElement('select');
 
-        profileContainer.className = "flex flex-col bg-bg-two border border-border-one rounded-lg p-2 m-2";
+        profileContainer.className = "flex flex-col bg-bg-two rounded-lg p-2 mb-1";
         profileContainer.id = `profileContainer-${uid}`;
 
         profileSelectLabel.htmlFor = "profile_uid";
@@ -315,7 +315,7 @@ runPluginScript(async () => {
         
         profileSelect.name = "profile_uid";
         profileSelect.required = true;
-        profileSelect.className = "bg-bg-one border-border-one rounded-lg mt-1 p-1";
+        profileSelect.className = "bg-bg-one rounded-lg p-1 mt-1";
         for (const profile of fixedProfiles) {
             const option = document.createElement('option');
             option.textContent = profile.name;
@@ -327,15 +327,16 @@ runPluginScript(async () => {
         profileContainer.appendChild(profileSelectLabel);
         profileContainer.appendChild(profileSelect);
 
-        //remove button
+        // remove button
         const removeBtnContainer = document.createElement('div');
         const removeBtn = document.createElement('button');
 
+        removeBtnContainer.className = "flex flex-row justify-end";
         removeBtn.type = "button";
         removeBtn.id = "removeBtn";
         removeBtn.value ="remove";
         removeBtn.textContent = "remove";
-        removeBtn.className = 'bg-bg-two border border-border-one rounded-lg p-2 m-2 mt-0';
+        removeBtn.className = 'bg-bg-two rounded-lg p-2';
 
         removeBtn.addEventListener('click', async () => {
             const confirmed = await getResponse("Remove control?");
@@ -346,14 +347,14 @@ runPluginScript(async () => {
 
         removeBtnContainer.appendChild(removeBtn);
 
-        //build card
+        // build card
         formCard.appendChild(nameContainer);
         formCard.appendChild(tempSourceContainer);
         formCard.appendChild(configContainer);
         formCard.appendChild(profileContainer);
         formCard.appendChild(removeBtnContainer);
         
-        //add card to collection
+        // add card to collection
         cards.appendChild(formCard);
 
     };
