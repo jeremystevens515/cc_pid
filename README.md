@@ -22,10 +22,10 @@ Requirements: CoolerControl with plugin support, Python 3, `requests`
 ## API token
 
 Create an access token in CoolerControl (Access Protection → Access Tokens) and put it in
-`<plugin dir>/token` (default `/var/lib/coolercontrol/plugins/cc_pid/token`, mode 600).
+`<plugin dir>/token` (default `/etc/cc_pid/token`, mode 600).
 The installer creates the empty file and never overwrites it. The `COOLERCONTROL_TOKEN`
 environment variable also works and takes priority. The token is never stored in
-`manifest.toml`, which is world-readable.
+`manifest.toml`.
 
 The plugin runs as `cc-plugin-user`, so the installer gives that user ownership of the
 scripts, `ui/index.html`, `config.json` and `token`. The plugin directory, `ui/` and `manifest.toml` stay root-owned. If your plugin runs as a

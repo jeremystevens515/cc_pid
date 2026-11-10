@@ -44,6 +44,7 @@ if [[ $ACTION != install ]]; then
     if [[ ! -d $DEST ]]; then echo "Nothing to remove at $DEST"; exit 0; fi
     if [[ $ACTION == purge ]]; then
         rm -rf "$DEST"
+        rm -rf /etc/cc_pid
     else
         # keep the user's config.json and token, remove everything else
         find "$DEST" -mindepth 1 -maxdepth 1 ! -name config.json ! -name token -exec rm -rf {} +
@@ -89,20 +90,33 @@ else
     echo "Created empty config.json (add controls in the plugin UI)."
 fi
 
-# API token: mode 600, never overwritten, never in the manifest
-if [[ ! -f $DEST/token ]]; then
-    install -m 600 /dev/null "$DEST/token"
+PLUGIN_USER="${PLUGIN_USER:-cc-plugin-user}"
+PLUGIN_GROUP="$(id -gn "$PLUGIN_USER" 2>/dev/null || echo root)"
+
+# API token lives outside the plugin dir: coolercontrold resets ownership of files in there
+TOKEN_DIR=/etc/cc_pid
+TOKEN_FILE="$TOKEN_DIR/token"
+install -d -m 750 -o root -g "$PLUGIN_GROUP" "$TOKEN_DIR"
+if [[ ! -e $TOKEN_FILE ]]; then
+    if [[ -s $DEST/token ]]; then            # migrate from the old location
+        install -m 640 -o root -g "$PLUGIN_GROUP" "$DEST/token" "$TOKEN_FILE"
+    else
+        (umask 077; : > "$TOKEN_FILE")
+    fi
+    rm -f "$DEST/token"
+    echo "Created $TOKEN_FILE"
 fi
-if [[ ! -s $DEST/token ]]; then
-    echo "NOTE: paste your CoolerControl access token into $DEST/token"
-    echo "      (e.g. sudo nano $DEST/token), then restart the plugin."
+chown root:"$PLUGIN_GROUP" "$TOKEN_FILE"
+chmod 640 "$TOKEN_FILE"
+if [[ ! -s $TOKEN_FILE ]]; then
+    echo "NOTE: paste your CoolerControl access token into $TOKEN_FILE"
+    echo "      (e.g. sudo nano $TOKEN_FILE), then restart the plugin."
 fi
 
 # Ownership: the plugin dir, ui/ and manifest.toml stay root-owned; the files below belong to the plugin user
-PLUGIN_USER="${PLUGIN_USER:-cc-plugin-user}"
 if id "$PLUGIN_USER" &>/dev/null; then
     chown "$PLUGIN_USER:" "$DEST/ui/index.html" \
-        "$DEST/cc_pid.py" "$DEST/models.py" "$DEST/config.json" "$DEST/token"
+        "$DEST/cc_pid.py" "$DEST/models.py" "$DEST/config.json"
     chown root:root "$DEST/manifest.toml"
 else
     echo "WARNING: user '$PLUGIN_USER' not found; files left root-owned." >&2

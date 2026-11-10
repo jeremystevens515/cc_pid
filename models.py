@@ -209,18 +209,22 @@ class ConfigurationWatcher:
 #--------------------------------------------------
 #   CONFIGURATION
 #--------------------------------------------------
-TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "token")
+TOKEN_FILE = os.environ.get("CC_PID_TOKEN_FILE", "/etc/cc_pid/token")
 
 def _load_token() -> str:
-    """COOLERCONTROL_TOKEN env var wins; otherwise read the 'token' file next to this module."""
     token = os.environ.get("COOLERCONTROL_TOKEN", "").strip()
     if token:
         return token
     try:
         with open(TOKEN_FILE, "r") as f:
-            return f.read().strip()
-    except OSError:
+            token = f.read().strip()
+            log.info(f"Loaded token: {token}")
+    except OSError as e:
+        log.error(f"Failed to read file {TOKEN_FILE}: {e}")
         return ""
+    if not token:
+        log.error(f"Token file {TOKEN_FILE} is empty")
+    return token
 
 @dataclass
 class SessionConfig:
