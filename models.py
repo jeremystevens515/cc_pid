@@ -49,47 +49,6 @@ class PIDConfig:
         self.kd = float(kd)
         self.d_filter_n = int(d_filter_n)
 
-'''@dataclass
-class PIDConfig:
-    target_temp: float = 70.0
-    deadband: float = 0
-    deadband_offset: float = 0
-    deadband_high: float = field(init=False)
-    deadband_low: float = field(init=False)
-
-    min_duty: int = 20
-    target_duty: int = 70
-    max_duty: int = 100
-
-    critical_temp: int = 87
-    safety_margin: int = 5
-
-    kp: float = 2.0 # duty% per degree of error
-    ki: float = 0.05 # duty% per (degree * sec) of accumulated error
-    kd: float = 3
-    d_filter_n: int = 3
-
-    def __post_init__(self):
-        self.deadband_high = self.target_temp + (self.deadband + self.deadband_offset)
-        self.deadband_low = self.target_temp - (self.deadband - self.deadband_offset)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "PIDConfig":
-        kwargs = {}
-        for f in fields(cls):
-            if not f.init:
-                continue  # deadband_high/deadband_low are derived, not settable
-            if f.name not in data:
-                continue  # missing -> dataclass default applies
-            value = data[f.name]
-            if value is None:
-                continue
-            if f.type in (float, "float") and isinstance(value, str):
-                value = float(value)
-            elif f.type in (int, "int") and isinstance(value, str):
-                value = int(value)
-            kwargs[f.name] = value
-        return cls(**kwargs)'''
 #--------------------------------------------------
 #   PROPORTIONAL-INTEGRAL CALCULATIONS
 #--------------------------------------------------
@@ -211,31 +170,35 @@ class ConfigurationWatcher:
 #--------------------------------------------------
 TOKEN_FILE = os.environ.get("CC_PID_TOKEN_FILE", "/etc/cc_pid/token")
 
-def _load_token() -> str:
-    token = os.environ.get("COOLERCONTROL_TOKEN", "").strip()
-    if token:
-        return token
-    try:
-        with open(TOKEN_FILE, "r") as f:
-            token = f.read().strip()
-            log.info(f"Loaded token: {token}")
-    except OSError as e:
-        log.error(f"Failed to read file {TOKEN_FILE}: {e}")
-        return ""
-    if not token:
-        log.error(f"Token file {TOKEN_FILE} is empty")
-    return token
-
 @dataclass
 class SessionConfig:
     base_url: str = os.environ.get("COOLERCONTROL_URL", "http://localhost:11987").rstrip("/")
-    auth_token: str = field(default_factory=_load_token)
+    auth_token: str = field(default_factory=lambda: SessionConfig._load_token())
+
+    @staticmethod
+    def _load_token() -> str:
+        token = os.environ.get("COOLERCONTROL_TOKEN", "").strip()
+        if token:
+            return token
+        try:
+            with open(TOKEN_FILE, "r") as f:
+                token = f.read().strip()
+                log.info(f"Loaded token: {token}")
+        except OSError as e:
+            log.error(f"Failed to read file {TOKEN_FILE}: {e}")
+            return ""
+        if not token:
+            log.error(f"Token file {TOKEN_FILE} is empty")
+        return token
 
 #--------------------------------------------------
 #   SESSION CLIENT
 #--------------------------------------------------
 class CoolerControlSessionClient:
     def __init__(self, config: SessionConfig):
+        if not config.auth_token:
+            raise RuntimeError("No auth token provided. Set env or use a token file.")
+
         self.config = config
         self.session = requests.Session()
         if config.auth_token:
